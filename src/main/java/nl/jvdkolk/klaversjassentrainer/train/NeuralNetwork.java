@@ -132,6 +132,71 @@ public class NeuralNetwork {
         }
     }
 
+    /**
+     * Train one step but restrict the softmax to a subset of allowed output indices (e.g., cards in hand).
+     * Disallowed classes receive effectively -inf logit, zero probability, and zero gradient.
+     */
+    public void trainStepMasked(double[] x, int targetIndex, boolean[] allowed, double learningRate) {
+        if (allowed == null || allowed.length != outputSize) {
+            // fallback to unmasked step to avoid silent shape issues
+            trainStep(x, targetIndex, learningRate);
+            return;
+        }
+        // forward
+        double[] h = new double[hiddenSize];
+        double[] preH = new double[hiddenSize];
+        for (int i = 0; i < hiddenSize; i++) {
+            double sum = b1[i];
+            for (int j = 0; j < inputSize; j++) sum += W1[i][j] * x[j];
+            preH[i] = sum;
+            h[i] = Math.tanh(sum);
+        }
+        double[] o = new double[outputSize];
+        for (int i = 0; i < outputSize; i++) {
+            if (!allowed[i]) { o[i] = Double.NEGATIVE_INFINITY; continue; }
+            double sum = b2[i];
+            for (int j = 0; j < hiddenSize; j++) sum += W2[i][j] * h[j];
+            o[i] = sum;
+        }
+        // softmax over allowed only
+        double max = Double.NEGATIVE_INFINITY;
+        for (int i = 0; i < outputSize; i++) if (allowed[i]) max = Math.max(max, o[i]);
+        double sumExp = 0.0;
+        for (int i = 0; i < outputSize; i++) {
+            if (!allowed[i]) { o[i] = 0.0; continue; }
+            o[i] = Math.exp(o[i] - max);
+            sumExp += o[i];
+        }
+        if (sumExp == 0.0) {
+            // nothing allowed? fall back
+            trainStep(x, targetIndex, learningRate);
+            return;
+        }
+        for (int i = 0; i < outputSize; i++) if (allowed[i]) o[i] /= sumExp;
+
+        // gradients
+        double[] dO = new double[outputSize];
+        for (int i = 0; i < outputSize; i++) dO[i] = allowed[i] ? o[i] : 0.0;
+        if (targetIndex >= 0 && targetIndex < outputSize && allowed[targetIndex]) dO[targetIndex] -= 1.0;
+
+        double[] dH = new double[hiddenSize];
+        for (int i = 0; i < outputSize; i++) {
+            if (!allowed[i]) continue;
+            for (int j = 0; j < hiddenSize; j++) {
+                W2[i][j] -= learningRate * dO[i] * h[j];
+                dH[j] += dO[i] * W2[i][j];
+            }
+            b2[i] -= learningRate * dO[i];
+        }
+        for (int j = 0; j < hiddenSize; j++) dH[j] *= (1 - Math.pow(Math.tanh(preH[j]), 2));
+        for (int i = 0; i < hiddenSize; i++) {
+            for (int j = 0; j < inputSize; j++) {
+                W1[i][j] -= learningRate * dH[i] * x[j];
+            }
+            b1[i] -= learningRate * dH[i];
+        }
+    }
+
     public void save(Path file) throws IOException {
         Files.createDirectories(file.getParent());
         try (BufferedWriter w = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
@@ -142,6 +207,9 @@ public class NeuralNetwork {
             writeVector(w, "b2", b2);
         }
     }
+
+    public int getInputSize() { return inputSize; }
+    public int getOutputSize() { return outputSize; }
 
     private static void writeMatrix(Writer w, String name, double[][] M) throws IOException {
         w.write(name + "\n");

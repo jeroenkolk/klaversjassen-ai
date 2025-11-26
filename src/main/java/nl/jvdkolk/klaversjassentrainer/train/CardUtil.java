@@ -55,6 +55,28 @@ public final class CardUtil {
         return v;
     }
 
+    /**
+     * Encode current trick with order information: 4 slots x 32 one-hots.
+     * Slots beyond provided cards remain zero. Cards may be null/"-" and are skipped.
+     */
+    public static double[] encodeTrickOrdered(List<String> trickInOrder) {
+        int slots = 4;
+        double[] v = new double[slots * ALL_CARDS.size()];
+        if (trickInOrder == null) return v;
+        int pos = 0;
+        for (String c : trickInOrder) {
+            if (pos >= slots) break;
+            if (c != null && !c.isBlank() && !"-".equals(c)) {
+                Integer idx = CARD_TO_INDEX.get(c);
+                if (idx != null) {
+                    v[pos * ALL_CARDS.size() + idx] = 1.0;
+                }
+            }
+            pos++;
+        }
+        return v;
+    }
+
     public static double[] encodeTrump(String trumpSuit) {
         double[] v = new double[SUITS.length];
         for (int i = 0; i < SUITS.length; i++) {

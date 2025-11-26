@@ -39,8 +39,8 @@ public class TrainingRunner implements CommandLineRunner {
         String modelFile = tp.getModelFile();
         int threads = Math.max(1, tp.getThreads());
 
-        int inputSize = ALL_CARDS.size() /*hand*/ + ALL_CARDS.size() /*trick*/ + SUITS.length /*trump*/;
-        int hidden = 64;
+        int inputSize = ALL_CARDS.size() /*hand*/ + (4 * ALL_CARDS.size()) /*trick ordered*/ + SUITS.length /*trump*/;
+        int hidden = 128;
         int output = ALL_CARDS.size();
         NeuralNetwork nn = new NeuralNetwork(inputSize, hidden, output, 42L);
 
@@ -70,9 +70,11 @@ public class TrainingRunner implements CommandLineRunner {
                     String label = api.fetchBestCard(trick, trump, hand);
                     if (label == null) return null;
                     if (!hand.contains(label)) return null;
-                    double[] x = concatVectors(encodeHand(hand), encodeTrick(trick), encodeTrump(trump));
+                    double[] x = concatVectors(encodeHand(hand), encodeTrickOrdered(trick), encodeTrump(trump));
                     int yIdx = cardIndex(label);
-                    return new Sample(x, yIdx);
+                    boolean[] allowed = new boolean[ALL_CARDS.size()];
+                    for (String c : hand) allowed[cardIndex(c)] = true;
+                    return new Sample(x, yIdx, allowed);
                 });
             }
             List<Future<Sample>> futures = pool.invokeAll(tasks);
@@ -95,9 +97,9 @@ public class TrainingRunner implements CommandLineRunner {
             // Evaluate current accuracy (sequential read-only forward) and train sequentially
             for (Sample s : batch) {
                 double[] probs = nn.forward(s.x);
-                int predIdx = argMax(probs);
+                int predIdx = argMaxAllowed(probs, s.allowed);
                 if (predIdx == s.yIdx) correct++;
-                nn.trainStep(s.x, s.yIdx, lr);
+                nn.trainStepMasked(s.x, s.yIdx, s.allowed, lr);
                 usedSamples++;
                 successes++;
             }
@@ -111,6 +113,8 @@ public class TrainingRunner implements CommandLineRunner {
                 Path file = Path.of(modelFile);
                 nn.save(file);
             }
+            // mild learning rate decay
+            lr *= 0.999;
         }
         pool.shutdown();
         Duration totalDur = Duration.between(startAll, Instant.now());
@@ -152,13 +156,27 @@ public class TrainingRunner implements CommandLineRunner {
         return idx;
     }
 
+    private static int argMaxAllowed(double[] arr, boolean[] allowed) {
+        int idx = -1;
+        double best = Double.NEGATIVE_INFINITY;
+        for (int i = 0; i < arr.length; i++) {
+            if (allowed != null && i < allowed.length && !allowed[i]) continue;
+            if (arr[i] > best) { best = arr[i]; idx = i; }
+        }
+        if (idx >= 0) return idx;
+        // fallback to global argmax
+        return argMax(arr);
+    }
+
     private static final class Sample {
         final double[] x;
         final int yIdx;
+        final boolean[] allowed;
 
-        Sample(double[] x, int yIdx) {
+        Sample(double[] x, int yIdx, boolean[] allowed) {
             this.x = x;
             this.yIdx = yIdx;
+            this.allowed = allowed;
         }
     }
 }

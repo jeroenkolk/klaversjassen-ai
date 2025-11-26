@@ -65,17 +65,30 @@ public class InferenceService {
             return new Result(best, cands, modelMeta);
         }
 
-        // Build input vector
-        List<String> trickCards = new ArrayList<>();
+        // Build input vector. Prefer ordered trick encoding if model trained that way.
+        List<String> trickOrder = new ArrayList<>();
         if (table != null) {
             for (BestCardRequest.Play p : table) {
-                if (p == null) continue;
+                if (p == null) { trickOrder.add(null); continue; }
                 String c = p.getCard();
+                trickOrder.add(c);
+            }
+        }
+        // Compute expected input sizes for both encodings
+        int unorderedInput = ALL_CARDS.size() + ALL_CARDS.size() + SUITS.length;
+        int orderedInput = ALL_CARDS.size() + (4 * ALL_CARDS.size()) + SUITS.length;
+        double[] x;
+        if (nn != null && nn.getInputSize() == orderedInput) {
+            x = concat(encodeHand(hand), encodeTrickOrdered(trickOrder), encodeTrump(trump));
+        } else {
+            // fallback/backward compatible
+            List<String> trickCards = new ArrayList<>();
+            for (String c : trickOrder) {
                 if (c == null || c.isBlank() || "-".equals(c)) continue;
                 trickCards.add(c);
             }
+            x = concat(encodeHand(hand), encodeTrick(trickCards), encodeTrump(trump));
         }
-        double[] x = concat(encodeHand(hand), encodeTrick(trickCards), encodeTrump(trump));
         double[] probs = nn.forward(x);
 
         // Collect candidates
