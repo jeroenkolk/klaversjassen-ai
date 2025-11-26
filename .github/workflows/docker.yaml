@@ -2,9 +2,7 @@ name: Klaversjassen AI
 
 on:
   push:
-    branches: [ "development" ]
-  pull_request:
-    branches: [ "development" ]
+    branches: [ "main" ]
 
 jobs:
 
