@@ -8,10 +8,9 @@ Accept: application/json
     {"player": 1, "card": "AD"},
     {"player": 2, "card": "9H"}
   ],
-  "trump": "H",
+  "trump": "D",
   "playerPosition": 0,
   "leaderPosition": 1,
   "partnerPosition": 2,
-  "topK": 3,
   "requestId": "demo-1"
 }

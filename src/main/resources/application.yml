@@ -4,7 +4,7 @@ spring:
 
 klaverjas:
   training:
-    enabled: true
+    enabled: false
     generations: 1000
     gamesPerGeneration: 700
     learningRate: 0.05
