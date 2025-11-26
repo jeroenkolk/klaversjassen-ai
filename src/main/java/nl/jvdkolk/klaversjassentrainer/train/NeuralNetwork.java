@@ -233,34 +233,16 @@ public class NeuralNetwork {
 
     public static NeuralNetwork load(Path file) throws IOException {
         try (BufferedReader r = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-            String header = r.readLine();
-            if (header == null || !header.startsWith("# model nn")) {
-                throw new IOException("Unrecognized model header");
-            }
-            int input = parseDim(header, "input");
-            int hidden = parseDim(header, "hidden");
-            int output = parseDim(header, "output");
-            NeuralNetwork nn = new NeuralNetwork(input, hidden, output, 42L);
+            return parseFromReader(r);
+        }
+    }
 
-            // Expect sections in order: W1, rows(hidden), b1, W2, rows(output), b2
-            expectSection(r, "W1");
-            for (int i = 0; i < hidden; i++) {
-                double[] row = parseRow(r.readLine(), input);
-                System.arraycopy(row, 0, nn.W1[i], 0, input);
-            }
-            expectSection(r, "b1");
-            double[] b1 = parseRow(r.readLine(), hidden);
-            System.arraycopy(b1, 0, nn.b1, 0, hidden);
-
-            expectSection(r, "W2");
-            for (int i = 0; i < output; i++) {
-                double[] row = parseRow(r.readLine(), hidden);
-                System.arraycopy(row, 0, nn.W2[i], 0, hidden);
-            }
-            expectSection(r, "b2");
-            double[] b2 = parseRow(r.readLine(), output);
-            System.arraycopy(b2, 0, nn.b2, 0, output);
-            return nn;
+    /**
+     * Load a model from an InputStream (e.g., a classpath resource).
+     */
+    public static NeuralNetwork load(InputStream in) throws IOException {
+        try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+            return parseFromReader(r);
         }
     }
 
@@ -269,6 +251,37 @@ public class NeuralNetwork {
         if (line == null || !line.trim().equals(name)) {
             throw new IOException("Expected section '" + name + "' but got: " + line);
         }
+    }
+
+    private static NeuralNetwork parseFromReader(BufferedReader r) throws IOException {
+        String header = r.readLine();
+        if (header == null || !header.startsWith("# model nn")) {
+            throw new IOException("Unrecognized model header");
+        }
+        int input = parseDim(header, "input");
+        int hidden = parseDim(header, "hidden");
+        int output = parseDim(header, "output");
+        NeuralNetwork nn = new NeuralNetwork(input, hidden, output, 42L);
+
+        // Expect sections in order: W1, rows(hidden), b1, W2, rows(output), b2
+        expectSection(r, "W1");
+        for (int i = 0; i < hidden; i++) {
+            double[] row = parseRow(r.readLine(), input);
+            System.arraycopy(row, 0, nn.W1[i], 0, input);
+        }
+        expectSection(r, "b1");
+        double[] b1 = parseRow(r.readLine(), hidden);
+        System.arraycopy(b1, 0, nn.b1, 0, hidden);
+
+        expectSection(r, "W2");
+        for (int i = 0; i < output; i++) {
+            double[] row = parseRow(r.readLine(), hidden);
+            System.arraycopy(row, 0, nn.W2[i], 0, hidden);
+        }
+        expectSection(r, "b2");
+        double[] b2 = parseRow(r.readLine(), output);
+        System.arraycopy(b2, 0, nn.b2, 0, output);
+        return nn;
     }
 
     private static int parseDim(String header, String key) throws IOException {

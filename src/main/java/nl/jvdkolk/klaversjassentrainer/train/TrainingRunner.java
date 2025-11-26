@@ -37,6 +37,8 @@ public class TrainingRunner implements CommandLineRunner {
         int gamesPerGen = tp.getGamesPerGeneration();
         double lr = tp.getLearningRate();
         String modelFile = tp.getModelFile();
+        // Persist the trained model into src/main/resources so it can be picked up from the classpath at runtime
+        Path resourcesModelPath = Path.of("src", "main", "resources").resolve(modelFile);
         int threads = Math.max(1, tp.getThreads());
 
         int inputSize = ALL_CARDS.size() /*hand*/ + (4 * ALL_CARDS.size()) /*trick ordered*/ + SUITS.length /*trump*/;
@@ -44,7 +46,7 @@ public class TrainingRunner implements CommandLineRunner {
         int output = ALL_CARDS.size();
         NeuralNetwork nn = new NeuralNetwork(inputSize, hidden, output, 42L);
 
-        log.info("Starting training: generations={}, games/gen={}, lr={}, threads={}, modelFile={}", generations, gamesPerGen, lr, threads, modelFile);
+        log.info("Starting training: generations={}, games/gen={}, lr={}, threads={}, modelFile={} (resources={})", generations, gamesPerGen, lr, threads, modelFile, resourcesModelPath);
         Instant startAll = Instant.now();
         int totalSamples = 0;
         int usedSamples = 0;
@@ -110,8 +112,7 @@ public class TrainingRunner implements CommandLineRunner {
             }
             // Save checkpoint occasionally
             if (g % 50 == 0 || g == generations) {
-                Path file = Path.of(modelFile);
-                nn.save(file);
+                nn.save(resourcesModelPath);
             }
             // mild learning rate decay
             lr *= 0.999;
@@ -119,8 +120,8 @@ public class TrainingRunner implements CommandLineRunner {
         pool.shutdown();
         Duration totalDur = Duration.between(startAll, Instant.now());
         log.info("Training completed. TotalSamples={}, UsedSamples={}, duration={} s", totalSamples, usedSamples, totalDur.toSeconds());
-        // final save
-        nn.save(Path.of(modelFile));
+        // final save to resources, so InferenceService can load from classpath
+        nn.save(resourcesModelPath);
     }
 
     private static double[] concatVectors(double[]... arrs) {

@@ -7,7 +7,9 @@ import nl.jvdkolk.klaversjassentrainer.train.NeuralNetwork;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.core.io.ClassPathResource;
 
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -28,18 +30,35 @@ public class InferenceService {
     }
 
     private void loadModelIfPresent() {
+        String location = props.getTraining().getModelFile();
+        // First try classpath (resources)
         try {
-            Path path = Path.of(props.getTraining().getModelFile());
-            if (Files.exists(path)) {
-                this.nn = NeuralNetwork.load(path);
-                log.info("Loaded model from {}", path);
-            } else {
-                log.warn("Model file not found at {}. Inference will use fallback.", path);
+            ClassPathResource cpr = new ClassPathResource(location);
+            if (cpr.exists()) {
+                try (InputStream in = cpr.getInputStream()) {
+                    this.nn = NeuralNetwork.load(in);
+                    log.info("Loaded model from classpath: {}", location);
+                    return;
+                }
             }
         } catch (Exception e) {
-            log.warn("Failed to load model: {}. Using fallback.", e.getMessage());
-            this.nn = null;
+            log.warn("Failed loading model from classpath '{}': {}", location, e.getMessage());
         }
+
+        // Fallback to filesystem path for backward compatibility
+        try {
+            Path path = Path.of(location);
+            if (Files.exists(path)) {
+                this.nn = NeuralNetwork.load(path);
+                log.info("Loaded model from filesystem: {}", path);
+                return;
+            }
+        } catch (Exception e) {
+            log.warn("Failed loading model from filesystem '{}': {}", location, e.getMessage());
+        }
+
+        log.warn("Model file '{}' not found on classpath or filesystem. Inference will use fallback.", location);
+        this.nn = null;
     }
 
     public Result pickBest(List<String> hand,
