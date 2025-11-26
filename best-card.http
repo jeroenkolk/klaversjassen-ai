@@ -1,0 +1,17 @@
+POST http://localhost:8080/v1/best-card
+Content-Type: application/json
+Accept: application/json
+
+{
+  "hand": ["JH", "9H", "AC", "10S", "7D", "QC", "8S", "7C"],
+  "table": [
+    {"player": 1, "card": "AD"},
+    {"player": 2, "card": "9H"}
+  ],
+  "trump": "H",
+  "playerPosition": 0,
+  "leaderPosition": 1,
+  "partnerPosition": 2,
+  "topK": 3,
+  "requestId": "demo-1"
+}

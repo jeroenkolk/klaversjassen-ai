@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: klavers-jassen-trainer
+
+klaverjas:
+  training:
+    enabled: true
+    generations: 1000
+    gamesPerGeneration: 1000
+    learningRate: 0.05
+    modelFile: model/model.txt
+    gameVariant: rotterdams
+    threads: 40
+  externalApi:
+    baseUrl: https://api.klaversjassen.nl
+    calcAiCardPath: /calcAiCard
+    timeoutMs: 5000
+
+logging:
+  level:
+    nl.jvdkolk: DEBUG
